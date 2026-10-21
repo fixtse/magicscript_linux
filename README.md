@@ -42,6 +42,18 @@ and run `bash install.sh` from its folder. A Git checkout also works.
 
 The installer also acts as an updater: run the same one-liner again at any time. It fetches
 the latest Linux adaptation and installs the upstream version recorded in `release.json`.
+In the Browser, open **Installed → Check for Linux updates**. This runs the same
+transactional updater: every click downloads the latest installer and patch files from
+GitHub, verifies the upstream package, prepares the Linux changes, and activates only a
+validated result. Future versions and Linux patch revisions use this same action; users
+do not need to install a new Browser first just to learn the new patches. New upstream
+releases still need a compatible `release.json` and patches published in this repository.
+
+The Browser shows progress and a success/failure result, prevents duplicate update runs,
+and stays open while the updater finishes. Close and reopen MagicScript and the Browser
+after a successful update to load the active release. Individual catalogue script updates
+continue to use the original signed catalogue and Python validator.
+
 Once installed, you can also run:
 
 ```bash
@@ -204,10 +216,11 @@ To develop the TypeScript Electron host (end users do not need this):
 ```bash
 ELECTRON_SKIP_BINARY_DOWNLOAD=1 pnpm install --frozen-lockfile
 pnpm build
+pnpm test:updates
 MAGICSCRIPT_TEST_APP="$HOME/.local/share/magicscript-linux/current" pnpm test:browser
 ```
 
-Commit `browser/dist/main.js` after rebuilding; the installer copies this generated entry
+Commit `browser/dist/main.js` and `browser/dist/linux-update.js` after rebuilding; the installer copies this generated entry
 point beside the original Browser assets from the upstream package. TypeScript test sources
 are in `browser/catalogue-test.ts` and `browser/smoke.ts`. The latter can run in Electron
 beside a staged `main.cjs`, with an isolated `MAGICSCRIPT_DIR`, to test the original renderer

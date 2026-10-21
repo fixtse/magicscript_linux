@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "build": "tsc -p browser/tsconfig.json",
-    "test:browser": "node browser/dist/catalogue-test.js"
+    "test:browser": "node browser/dist/catalogue-test.js",
+    "test:updates": "node --test browser/dist/linux-update-test.js"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -39,9 +39,11 @@ const electron_1 = require("electron");
 const path = __importStar(require("node:path"));
 const fs = __importStar(require("node:fs"));
 const node_url_1 = require("node:url");
+const linux_update_1 = require("./linux-update");
 const catalogue = require('./catalogue.js');
 const entry = path.join(__dirname, 'index.html');
 let window = null;
+let pendingUpdate = null;
 function scriptId(value) {
     if (typeof value !== 'string' || !/^[\w-]{1,64}$/.test(value))
         throw new Error('Invalid script id.');
@@ -59,7 +61,10 @@ function localPath(value) {
 }
 function registerHandlers() {
     const handlers = {
-        fetch: () => catalogue.fetchCatalogue(),
+        fetch: async () => {
+            const result = await catalogue.fetchCatalogue();
+            return { ...result, app: { ...result.app, platform: 'linux', installed: (0, linux_update_1.installedVersion)(), update: false } };
+        },
         install: (id) => catalogue.installScript(scriptId(id)),
         uninstall: (id) => catalogue.uninstallScript(scriptId(id)),
         precheck: (id) => catalogue.precheckScript(scriptId(id)),
@@ -75,7 +80,10 @@ function registerHandlers() {
             return catalogue.rateScript(scriptId(id), stars);
         },
         // Linux updates are managed by the transactional updater, not a Mac/Windows download.
-        downloadInstaller: () => { throw new Error('Use ~/.local/bin/magicscript-update to update the Linux installation.'); },
+        downloadInstaller: () => {
+            pendingUpdate ??= (0, linux_update_1.runLinuxUpdate)().finally(() => { pendingUpdate = null; });
+            return pendingUpdate;
+        },
         showFile: (file) => { electron_1.shell.showItemInFolder(localPath(file)); return true; },
         reveal: async () => {
             const dir = path.join(catalogue.userDir(), 'scripts');
@@ -119,6 +127,12 @@ async function startBrowser() {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true, sandbox: true, nodeIntegration: false,
         },
+    });
+    window.on('close', (event) => {
+        if (!pendingUpdate)
+            return;
+        event.preventDefault();
+        void electron_1.dialog.showMessageBox(window, { type: 'info', message: 'MagicScript is updating.', detail: 'Please wait for the update result before closing the Browser.' });
     });
     window.setMenu(null);
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));

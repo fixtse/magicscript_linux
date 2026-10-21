@@ -28,6 +28,31 @@ async function main(): Promise<void> {
     await page.executeJavaScript(`document.querySelector('#showIncluded').click(); document.querySelector('#search').value = 'timeline'; document.querySelector('#search').dispatchEvent(new Event('input'));`);
     const search = await page.executeJavaScript(`({ rows: document.querySelectorAll('article').length, text: document.querySelector('#list').textContent })`);
     assert(search.rows > 0);
+    // In test mode only, replace the updater under the isolated HOME with a harmless fixture.
+    if (process.env.MAGICSCRIPT_TEST_UPDATE === '1') {
+        const command = path.join(app.getPath('home'), '.local/bin/magicscript-update');
+        fs.mkdirSync(path.dirname(command), { recursive: true });
+        fs.writeFileSync(command, '#!/usr/bin/env bash\necho "Latest GitHub patches checked"\n', { mode: 0o755 });
+        await page.executeJavaScript(`document.querySelector('#search').value = ''; document.querySelector('#search').dispatchEvent(new Event('input')); document.querySelector('[data-tab="installed"]').click()`);
+        assert(await page.executeJavaScript(`!!document.querySelector('[data-app="download"]')`));
+        await page.executeJavaScript(`document.querySelector('[data-app="download"]').click()`);
+        for (let attempt = 0; attempt < 100; attempt++) {
+            if (await page.executeJavaScript(`document.querySelector('#status').textContent.includes('Linux update completed')`)) break;
+            await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        const status = await page.executeJavaScript(`document.querySelector('#status').textContent`);
+        assert.match(status, /Linux update completed/);
+        // The same button should surface an updater failure too.
+        fs.writeFileSync(command, '#!/usr/bin/env bash\necho "Simulated patch failure"\nexit 1\n', { mode: 0o755 });
+        await page.executeJavaScript(`document.querySelector('[data-app="download"]').click()`);
+        for (let attempt = 0; attempt < 100; attempt++) {
+            if (await page.executeJavaScript(`document.querySelector('#status').textContent.includes('Simulated patch failure')`)) break;
+            await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        assert.match(await page.executeJavaScript(`document.querySelector('#status').textContent`), /Simulated patch failure/);
+        assert.equal(await page.executeJavaScript(`document.querySelector('[data-app="download"]').disabled`), false);
+        console.log('PASS: Linux update button click, success feedback, failure feedback and retry.');
+    }
     const png = await window.capturePage();
     const output = process.env.MAGICSCRIPT_SCREENSHOT || path.join(app.getPath('temp'), 'magicscript-browser-linux.png');
     fs.writeFileSync(output, png.toPNG());

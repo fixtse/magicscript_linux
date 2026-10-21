@@ -59,7 +59,10 @@ def prepare_browser(source, stage, bundle):
     shutil.copytree(upstream, target, ignore=shutil.ignore_patterns('._*', '*.node', 'main.js', 'manifest.xml'))
     with (bundle / 'browser/catalogue-linux.patch').open() as patch:
         subprocess.run(['patch', '--batch', '--forward', '--fuzz=0', str(target / 'catalogue.js')], stdin=patch, check=True)
+    with (bundle / 'browser/renderer-linux.patch').open() as patch:
+        subprocess.run(['patch', '--batch', '--forward', '--fuzz=0', str(target / 'renderer.js')], stdin=patch, check=True)
     shutil.copy2(bundle / 'browser/dist/main.js', target / 'main.cjs')
+    shutil.copy2(bundle / 'browser/dist/linux-update.js', target / 'linux-update.js')
     (target / 'package.json').write_text(json.dumps({
         'name': 'magicscript-browser-linux', 'version': '0.1.0', 'main': 'main.cjs',
         'description': "Unofficial Linux host for MrAlexTech's MagicScript Browser",
@@ -71,7 +74,7 @@ def prepare_browser(source, stage, bundle):
     env = dict(os.environ, ELECTRON_RUN_AS_NODE='1')
     for name in ('LD_LIBRARY_PATH', 'LD_PRELOAD'):
         env.pop(name, None)
-    for file in ('main.cjs', 'preload.js', 'renderer.js', 'catalogue.js'):
+    for file in ('main.cjs', 'linux-update.js', 'preload.js', 'renderer.js', 'catalogue.js'):
         subprocess.run([runtime, '--check', str(target / file)], env=env, check=True, capture_output=True)
     # The Browser is just a catalogue manager; no native Resolve module is needed.
     assert not list(target.glob('*.node'))

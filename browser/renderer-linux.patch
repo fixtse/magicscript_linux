@@ -1,0 +1,46 @@
+--- renderer.js
++++ renderer.js
+@@ -244,6 +244,13 @@
+ 
+ function renderApp() {
+     const a = catalogue.app || {};
++    if (a.platform === 'linux') {
++        return `<section class="app"><h2>MagicScript for Linux</h2><article><div class="text">
++            <div class="app-line"><strong>MagicScript ${esc(a.installed || '?')}</strong></div>
++            <div class="desc">Fetch the latest supported version and Linux fixes from GitHub. Your scripts and settings are preserved; failed updates roll back.</div>
++            <div class="actions"><button data-app="download">Check for Linux updates</button></div>
++            </div></article></section>`;
++    }
+     if (!a.installed && !a.available) return '';
+     let body;
+     if (a.update) {
+@@ -318,13 +325,27 @@
+ async function appClick(el) {
+     if (el.dataset.app === 'show' && downloaded) return window.catalogueAPI.showFile(downloaded.file);
+     el.disabled = true;
+-    setStatus('Downloading the installer\u2026');
++    const linux = catalogue.app && catalogue.app.platform === 'linux';
++    setStatus(linux ? 'Fetching the latest Linux installer and fixes from GitHub; validating and applying the update…' : 'Downloading the installer\u2026');
+     try {
+         downloaded = await window.catalogueAPI.downloadInstaller();
++        if (linux) {
++            const version = downloaded.version;
++            downloaded = null;
++            try {
++                catalogue = await window.catalogueAPI.fetch();
++                render();
++            } catch (refreshError) {
++                console.warn('Update completed; catalogue refresh failed:', refreshError);
++            }
++            setStatus(`Linux update completed${version ? `: MagicScript ${version}` : ''}. Latest GitHub fixes applied or already up to date. Close and reopen MagicScript and the Browser to use the active release.`, 'ok');
++            el.disabled = false;
++            return;
++        }
+         setStatus(`Installer ${downloaded.version} saved to ${downloaded.file} and checked against the signed catalogue.`, 'ok');
+         render();
+     } catch (e) {
+-        setStatus(`Download failed: ${e.message || e}`, 'err');
++        setStatus(`${linux ? "Linux update failed" : "Download failed"}: ${e.message || e}`, 'err');
+         el.disabled = false;
+     }
+ }

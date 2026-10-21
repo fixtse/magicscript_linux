@@ -7,3 +7,4 @@ research/
 node_modules/
 browser/dist/*
 !browser/dist/main.js
+!browser/dist/linux-update.js

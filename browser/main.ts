@@ -1,8 +1,9 @@
 // Linux host for MrAlexTech's original MagicScript Browser renderer and catalogue.
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { installedVersion, runLinuxUpdate, type LinuxUpdateResult } from './linux-update';
 
 type Catalogue = {
     userDir(): string;
@@ -17,6 +18,7 @@ type Catalogue = {
 const catalogue: Catalogue = require('./catalogue.js');
 const entry = path.join(__dirname, 'index.html');
 let window: BrowserWindow | null = null;
+let pendingUpdate: Promise<LinuxUpdateResult> | null = null;
 
 function scriptId(value: unknown): string {
     if (typeof value !== 'string' || !/^[\w-]{1,64}$/.test(value)) throw new Error('Invalid script id.');
@@ -34,7 +36,10 @@ function localPath(value: unknown): string {
 
 function registerHandlers(): void {
     const handlers: Record<string, (...args: unknown[]) => unknown> = {
-        fetch: () => catalogue.fetchCatalogue(),
+        fetch: async () => {
+            const result = await catalogue.fetchCatalogue() as { app?: Record<string, unknown> };
+            return { ...result, app: { ...result.app, platform: 'linux', installed: installedVersion(), update: false } };
+        },
         install: (id) => catalogue.installScript(scriptId(id)),
         uninstall: (id) => catalogue.uninstallScript(scriptId(id)),
         precheck: (id) => catalogue.precheckScript(scriptId(id)),
@@ -48,7 +53,10 @@ function registerHandlers(): void {
             return catalogue.rateScript(scriptId(id), stars);
         },
         // Linux updates are managed by the transactional updater, not a Mac/Windows download.
-        downloadInstaller: () => { throw new Error('Use ~/.local/bin/magicscript-update to update the Linux installation.'); },
+        downloadInstaller: () => {
+            pendingUpdate ??= runLinuxUpdate().finally(() => { pendingUpdate = null; });
+            return pendingUpdate;
+        },
         showFile: (file) => { shell.showItemInFolder(localPath(file)); return true; },
         reveal: async () => {
             const dir = path.join(catalogue.userDir(), 'scripts');
@@ -90,6 +98,11 @@ export async function startBrowser(): Promise<BrowserWindow> {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true, sandbox: true, nodeIntegration: false,
         },
+    });
+    window.on('close', (event) => {
+        if (!pendingUpdate) return;
+        event.preventDefault();
+        void dialog.showMessageBox(window!, { type: 'info', message: 'MagicScript is updating.', detail: 'Please wait for the update result before closing the Browser.' });
     });
     window.setMenu(null);
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));

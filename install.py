@@ -16,7 +16,8 @@ from browser_port import BROWSER_COMMAND, RESOLVE_BROWSER, desktop_entry, prepar
 
 FILES = ('install.py', 'release.json', 'no-streamdeck.patch', 'guide-linux.patch',
          'ai-skills.patch', 'magicscript_skills.py', 'browser_port.py',
-         'browser/catalogue-linux.patch', 'browser/window-button.patch', 'browser/dist/main.js')
+         'browser/catalogue-linux.patch', 'browser/window-button.patch', 'browser/renderer-linux.patch',
+         'browser/dist/main.js', 'browser/dist/linux-update.js')
 UPDATER = '''#!/usr/bin/env bash
 set -euo pipefail
 work=$(mktemp -d)
