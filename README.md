@@ -12,20 +12,78 @@ This project is independent of MrAlexTech Ltd and Blackmagic Design.
 
 You need DaVinci Resolve **Studio** 21.1 or newer installed on Linux. The free edition is not supported. The installer assumes Resolve is installed in `/opt/resolve`.
 
-1. Install these command-line tools using your distribution's package manager: `git`, `bash`, `curl`, `python3`, `patch`, `bsdtar` (libarchive), and `sha256sum` (coreutils).
-2. Open a terminal and run:
+1. Install these command-line tools using your distribution's package manager: `bash`, `curl`, `python3`, `patch`, `bsdtar` (libarchive), `tar`, and `sha256sum` (coreutils).
+2. Open a terminal and run this one-line installer (no Git required):
 
    ```bash
-   git clone https://github.com/fixtse/magicscript_linux.git
-   cd magicscript_linux
-   bash install.sh
+   curl -fsSL https://raw.githubusercontent.com/fixtse/magicscript_linux/main/install.sh | bash
    ```
 
 3. Restart Resolve, then open **Workspace → Scripts → Utility → MagicScript**.
 
-Run the installer as your normal user, without `sudo`. Installation downloads the original macOS package directly from the creator's download server, verifies its pinned SHA-256, and extracts its Python files. No macOS or Windows executable is run. An internet connection is needed for installation.
+Run as your normal user, without `sudo`. The command downloads the Linux installer files
+from this repository and the original macOS package from the creator's download server.
+It verifies the package's SHA-256 before extracting its Python files. No macOS or Windows
+executable is run. An internet connection is required.
 
-The installer refuses to overwrite an existing installation or launcher. It currently installs version 1.2.3; it is not an automatic updater.
+If you prefer to inspect the installer first, download this repository as a ZIP, extract it,
+and run `bash install.sh` from its folder. A Git checkout also works.
+
+## Automatic updates and rollback
+
+The installer also acts as an updater: run the same one-liner again at any time. It fetches
+the latest Linux adaptation and installs the upstream version recorded in `release.json`.
+Once installed, you can also run:
+
+```bash
+~/.local/bin/magicscript-update
+```
+
+With a running **systemd user manager**, installation enables a daily
+`magicscript-update.timer` (with up to 30 minutes randomized delay). Checks run while your
+user manager is running; persistent timers catch up on a missed check after login. If the
+user manager is unavailable, installation prints that automatic scheduling is unavailable;
+use the update command manually instead.
+
+To install without enabling automatic checks:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fixtse/magicscript_linux/main/install.sh | bash -s -- --no-auto-update
+```
+
+This flag leaves any existing timer unchanged. To disable an already enabled timer:
+
+```bash
+systemctl --user disable --now magicscript-update.timer
+```
+
+Check the schedule and logs:
+
+```bash
+systemctl --user list-timers magicscript-update.timer
+journalctl --user -u magicscript-update.service
+```
+
+Updates are transactional:
+
+- Downloading, checksum verification, extraction, patching, syntax checks and the upstream
+  offline catalogue validator complete before the new engine is activated.
+- A complete release is stored separately, then the `current` symlink switches atomically.
+  The launcher resolves that release once, so an already open window keeps using its engine.
+- If preparation or activation fails, the previous engine link, launcher, updater and managed
+  timer files are retained or restored. Failed staged releases are removed. An initial failed
+  installation leaves no active engine or launcher.
+- Personal scripts, reports, settings and installed assistant skills are never changed by the
+  updater. The original first-run seeding still runs when you open MagicScript.
+- A lock prevents simultaneous installs. Older successful releases and the original `1.2.3`
+  installation are kept; close and reopen MagicScript after an update.
+
+Automatic updates follow **releases supported by this Linux adaptation**, including patch
+updates to the same upstream version. They do not blindly install an untested new upstream
+release. Maintainers must update `release.json`, its pinned checksum, and compatible patches
+before a new upstream version is eligible. A failed download/checksum leaves the current
+installation untouched. Power loss or a forcibly killed process cannot execute rollback;
+activation uses atomic file/link replacement to reduce that risk.
 
 ## What this Linux adaptation changes
 
@@ -57,7 +115,7 @@ Installation adds instructions; it does not sign into an assistant, configure an
 
 | Item | Location |
 |---|---|
-| Engine | `~/.local/share/magicscript-linux/1.2.3/` |
+| Engine | `~/.local/share/magicscript-linux/current/` (link to an immutable release) |
 | Resolve menu launcher | `~/.local/share/DaVinciResolve/Fusion/Scripts/Utility/MagicScript.py` |
 | Personal MagicScript folder | `~/.local/share/DaVinciResolve/MagicScript/` |
 | Editable scripts | `<MagicScript folder>/scripts/<Category>/<id>.py` |
@@ -72,7 +130,8 @@ Verified on Linux x86_64 with Resolve Studio **21.1.1.10**:
 - The catalogue window and assistant chooser initialized inside Resolve.
 - Linux paths discovered **125 LUT files** on the test machine.
 - Skill installation, repeat installation, conflict preservation, manual ZIP export and success messaging were checked; installation tests used temporary directories.
-- A clean installation with all patches applied successfully.
+- Clean installation, repeated update, patch/preparation failure, activation failure, and
+  timer-activation rollback were checked. Transaction tests use temporary home directories.
 
 This does not establish that every catalogue script or UI interaction works on every Linux system. Individual catalogue scripts have not all been tested against projects. The Electron Workflow Integration browser is not included. Upstream Ctrl/Shift-click modifier detection has no Linux implementation, so those shortcuts remain limited.
 
@@ -81,19 +140,41 @@ This does not establish that every catalogue script or UI interaction works on e
 - **No MagicScript menu entry:** restart Resolve and confirm the launcher exists at the path above.
 - **Chooser does not open or text is clipped after an update:** close and reopen MagicScript so it loads the current code. Opening errors appear in its log.
 - **Missing command:** install the named tool using your distribution's package manager. `bsdtar` is provided by libarchive; some distributions name the package `libarchive-tools`.
-- **Existing installation or skill:** the installer will not overwrite it. Back up your files and move the existing engine/launcher or conflicting skill aside before reinstalling. Keep your personal scripts folder.
+- **Existing installation:** recognized Linux launchers are upgraded automatically. An unrecognized launcher is preserved and reported as a conflict. Existing assistant skills are not overwritten; move a conflicting skill aside if you want to replace it.
 - **Checksum mismatch:** stop and verify the upstream download/version. The package is pinned to 1.2.3; do not bypass verification.
 
 ## Uninstall
 
-Remove these two installation items:
+Disable automatic checks first, if enabled:
 
 ```bash
-rm -- "$HOME/.local/share/DaVinciResolve/Fusion/Scripts/Utility/MagicScript.py"
-rm -r -- "$HOME/.local/share/magicscript-linux/1.2.3"
+systemctl --user disable --now magicscript-update.timer
 ```
 
-Your personal scripts, reports and state remain in `~/.local/share/DaVinciResolve/MagicScript/`. Skills installed through the chooser also remain; remove their `create-magicscript` folders separately if desired.
+Then remove the managed installation and timer files:
+
+```bash
+rm -f -- "$HOME/.config/systemd/user/magicscript-update.timer" "$HOME/.config/systemd/user/magicscript-update.service"
+rm -f -- "$HOME/.local/bin/magicscript-update"
+rm -f -- "$HOME/.local/share/DaVinciResolve/Fusion/Scripts/Utility/MagicScript.py"
+rm -r -- "$HOME/.local/share/magicscript-linux"
+systemctl --user daemon-reload
+```
+
+Skip the systemctl commands if your system does not use a systemd user manager.
+Your personal scripts, reports and state remain in `~/.local/share/DaVinciResolve/MagicScript/`.
+Skills installed through the chooser also remain; remove their `create-magicscript` folders
+separately if desired.
+
+## Development checks
+
+```bash
+bash -n install.sh
+python3 -m unittest discover -s tests -v
+```
+
+The tests exercise transaction behavior without downloading MagicScript or touching your
+real installation. A full installation additionally validates the actual downloaded payload.
 
 ## Attribution and upstream package
 
