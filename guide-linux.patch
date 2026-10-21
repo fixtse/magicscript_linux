@@ -1,0 +1,164 @@
+--- MAGICSCRIPT.md
++++ MAGICSCRIPT.md
+@@ -2,42 +2,48 @@
+ 
+ You are helping someone who has MagicScript installed in DaVinci Resolve Studio. MagicScript is a
+ catalogue of verified, parameterised Python scripts that run offline from a window inside Resolve
+-(Workspace > Workflow Integrations > MagicScript). Your job, when asked, is to **reuse or adapt a
++(Workspace > Scripts > Utility > MagicScript). Your job, when asked, is to **reuse or adapt a
+ catalogue script rather than write from scratch**, and to **save anything new you verify** so the
+ person can run it again without you.
+ 
+-MagicScript runs on macOS and Windows. Everything in this guide applies to both; only the folders
+-differ. Ask which one the person is on, or read it from the paths they quote.
++This guide describes the unofficial Linux installation on this machine. It uses Resolve's
++Python window and scripts. Paths and examples below are specific to Linux.
+ 
+ ## Where things are
+ 
+-| What | macOS | Windows |
+-|---|---|---|
+-| The person's MagicScript folder | `~/Library/Application Support/Blackmagic Design/DaVinci Resolve/MagicScript/` | `%APPDATA%\Blackmagic Design\DaVinci Resolve\Support\MagicScript\` |
+-| Every script, shipped ones and the person's own (yours go here too) | `<MagicScript folder>/scripts/<Category>/<id>.py` | `<MagicScript folder>\scripts\<Category>\<id>.py` |
+-| Index of the shipped scripts and their variables | `<MagicScript folder>/CATALOGUE.md` | `<MagicScript folder>\CATALOGUE.md` |
+-| Shared helpers used by scripts | `<MagicScript folder>/scripts/_lib.py` | `<MagicScript folder>\scripts\_lib.py` |
+-| Reports scripts write | `<MagicScript folder>/reports/` | `<MagicScript folder>\reports\` |
+-| Python that runs the plugin | the python.org 3.13 framework, if installed | Resolve's bundled `ResolvePython` 3.14 |
++| What | Linux |
++|---|---|
++| The person's MagicScript folder | `~/.local/share/DaVinciResolve/MagicScript/` |
++| Every script, shipped ones and the person's own (yours go here too) | `<MagicScript folder>/scripts/<Category>/<id>.py` |
++| Index of the shipped scripts and their variables | `<MagicScript folder>/CATALOGUE.md` |
++| Shared helpers used by scripts | `<MagicScript folder>/scripts/_lib.py` |
++| Reports scripts write | `<MagicScript folder>/reports/` |
++| Python that runs the plugin | Resolve's Python host; bundled interpreter: `/opt/resolve/bin/ResolvePython` |
+ 
+ The shipped scripts are copied into that one folder the first time the window runs, and from then on
+ they are the person's: edit them in place, copy one as a template, delete what is not wanted. There is
+ no separate read-only catalogue. (A developer checkout marked by a `DEV_APP_DIR` file in the folder
+ reads its own `scripts/` live instead.) The window's engine, helpers' source and this guide sit in
+-the install folder (`/Library/Application Support/MagicScript/current` or
+-`%PROGRAMDATA%\MagicScript\current`); a copy of this guide and of CATALOGUE.md is kept beside the
+-scripts folder.
+-
+-Path defaults in the catalogue are written macOS-style (`~/Movies/Renders`, `~/Desktop/notes.csv`).
+-On Windows the window shows and uses the native form (`~\Videos\Renders`, `~\Desktop\notes.csv`):
+-`~/Movies` becomes `~\Videos`; Desktop, Pictures and Documents keep their names. When you quote a
+-path to a Windows user, quote the Windows form.
++the install folder (`~/.local/share/magicscript-linux/1.2.3`); a copy of this guide and of
++CATALOGUE.md is kept beside the scripts folder.
++
++Use forward slashes and existing folders, such as `~/Videos/Renders` or `~/Desktop/notes.csv`.
++Some shipped defaults use `~/Movies`; this is not automatically converted on Linux, so choose
++an appropriate existing directory before running the script.
+ 
+ If the person pasted a prompt made by MagicScript's **AI prompt...** dialog, it already carries
+ their request, a "My Resolve right now" section with the live project facts (platform, project,
+ timelines, the current timeline's frame rate, size and tracks, bins, colour management, paths) and
+ possibly this guide: use those facts instead of asking for them.
+ 
++Linux launcher: `~/.local/share/DaVinciResolve/Fusion/Scripts/Utility/MagicScript.py`.
++Linux LUTs: `/opt/resolve/LUT/`. Fusion templates: `/opt/resolve/Fusion/Templates/Templates.drfx`,
++`/opt/resolve/Fusion/Templates/Edit/`, and `~/.local/share/DaVinciResolve/Fusion/Templates/Edit/`.
++The launcher sets `MAGICSCRIPT_APP` to the engine folder and `MAGICSCRIPT_SEED=1` so the
++original seeding code copies shipped scripts into the personal scripts folder. Keep new scripts
++in that personal folder, not in the engine directory. Ctrl/Shift-click shortcuts remain limited
++because upstream modifier-key detection has no Linux implementation.
++
+ ## Step 1: check the catalogue first
+ 
+ Read `CATALOGUE.md` (or list the scripts folder) and look for a script that does the job. Match on meaning, not wording: "cut
+@@ -49,17 +55,15 @@
+ 
+ From any tool that runs Python inside Resolve (Blackmagic's own DaVinci Resolve MCP `run_script`,
+ the Resolve console, or an external interpreter connected to Resolve), this runs a script by id
+-with variables, exactly as the window would. It works unchanged on both platforms:
++with variables, exactly as the window would. Use the paths for this Linux installation:
+ 
+ ```python
+-import runpy, os, sys
+-
+-if sys.platform == "win32":
+-    kit = os.path.join(os.environ["APPDATA"], "Blackmagic Design", "DaVinci Resolve", "Support", "MagicScript")
+-    app = os.path.join(os.environ["PROGRAMDATA"], "MagicScript", "current")
+-else:
+-    kit = os.path.expanduser("~/Library/Application Support/Blackmagic Design/DaVinci Resolve/MagicScript")
+-    app = "/Library/Application Support/MagicScript/current"
++import runpy, os
++
++kit = os.path.expanduser("~/.local/share/DaVinciResolve/MagicScript")
++app = os.path.expanduser("~/.local/share/magicscript-linux/1.2.3")
++kit = os.environ.get("MAGICSCRIPT_DIR") or kit
++app = os.environ.get("MAGICSCRIPT_APP") or app
+ dev = os.path.join(kit, "DEV_APP_DIR")                      # development checkout override
+ if os.path.isfile(dev):
+     app = open(dev, encoding="utf-8-sig").read().strip()
+@@ -110,7 +114,7 @@
+ def run(ctx):
+     lib, v = ctx.lib, ctx.vars              # v: variable id -> typed value
+     tl = ctx.require_timeline()             # or ctx.require_project(); ctx.media_pool; ctx.fps
+-    out_dir = lib.expand(v["out_dir"])      # resolves ~ and %VARS% on either platform
++    out_dir = lib.expand(v["out_dir"])      # expands ~ and environment variables
+     ...
+     ctx.log("one line per thing done")      # shows in the window's log
+     ctx.progress()                          # inside long loops: keeps the window responsive
+@@ -216,11 +220,11 @@
+ colour picker, and `run` receives `'#RRGGBB'`.
+ Sensible defaults: the script should do something useful with no boxes touched.
+ 
+-**Paths.** Write path defaults macOS-style with forward slashes (`~/Movies/...`, `~/Desktop/...`);
+-MagicScript localises them on Windows and adds a Browse button to the field (inferred from a
++**Paths.** Write Linux path defaults with forward slashes (`~/Videos/...`, `~/Desktop/...`).
++MagicScript adds a Browse button to the field (inferred from a
+ home-relative default or a label naming a file or folder; set `"browse": "file"`, `"folder"` or
+ `False` on the variable to override). Inside `run`, always pass a path variable through
+-`lib.expand()` before using it. Never hard-code `/Users/...`, `C:\Users\...` or a drive letter.
++`lib.expand()` before using it. Never hard-code another user's home directory.
+ 
+ **Pickers: how to get a dropdown of what is in Resolve.** Anything the person chooses from Resolve
+ (a timeline, a bin, a clip, a render preset, a project, a gallery album, a LUT, a Fusion title or
+@@ -271,7 +275,8 @@
+                                      "setLevelMode": resolve.NORMALIZE_AUDIO_SET_LEVEL_RELATIVE})
+       gain = audio[0].GetProperty("AudioVolume")        # e.g. 8.8
+ - `Graph.ApplyGradeFromDRX` with a `.drx` from another project on a still or image sequence crashed
+-  Resolve on Windows; only apply stills grabbed in the same project, and only to video clips.
++  Resolve in upstream testing. As a precaution, only apply stills grabbed in the same project,
++  and only to video clips; Linux behavior has not been verified.
+ - For a single frame use `lib.export_frame` (`Project.ExportCurrentFrameAsStill`): timeline resolution,
+   about 0.1 s, works on the Edit, Colour and Cut pages (False on Fusion and Deliver), formats png,
+   jpg, tif, dpx, bmp. It renders the timeline output under the playhead, so disable tracks above the
+@@ -280,7 +285,7 @@
+ - `StartRendering` is the last call in a script; never poll a render from the script. While a render
+   runs, every other API call returns `None`; the render scripts check `IsRenderingInProgress` first.
+ - Insert-edit calls (`Insert*IntoTimeline`) ripple the cut; use `lib.overlay_item` for overlays.
+-- Locking a track makes insert calls return `None` on macOS; do not rely on the lock trick.
++- Do not rely on track locking to change insert behavior; verify API return values on Linux.
+ - Rebuilding a timeline from pool clips drops grades, Fusion and transitions: say so in the warning.
+ - `AppendToTimeline` returns `None` in its list for items it could not place (an SRT clip in a bin,
+   for example): filter the list before using it.
+@@ -413,7 +418,7 @@
+ ```
+ 
+ Nothing in the loop changed. The bootstrap went, the constant became a choice, the print became a
+-return value, and the script gained a dialog, a log, a favourites entry and a Stream Deck key for free.
++return value, and the script gained a dialog, a log, a favourites entry for free.
+ 
+ ## Step 4: verify before you save
+ 
+@@ -426,8 +431,7 @@
+ 
+ Write the file to the person's scripts folder under its category:
+ 
+-- macOS: `~/Library/Application Support/Blackmagic Design/DaVinci Resolve/MagicScript/scripts/<Category>/<id>.py`
+-- Windows: `%APPDATA%\Blackmagic Design\DaVinci Resolve\Support\MagicScript\scripts\<Category>\<id>.py`
++- Linux: `~/.local/share/DaVinciResolve/MagicScript/scripts/<Category>/<id>.py`
+ 
+ A new script gets a new id (`remove_silences_timeline_v2`, `my_selects_from_markers`); editing a
+ shipped script in place is fine when the person asked for that, since the copy is theirs. Then tell
+@@ -446,5 +450,5 @@
+ ## Etiquette
+ 
+ Say which catalogue script you used or adapted. Quote the variables you set, and quote paths in the
+-person's platform's form. Warn before anything destructive. Keep scripts under about 150 lines: one
++Linux form. Warn before anything destructive. Keep scripts under about 150 lines: one
+ job, one file. Keep the description to one sentence and the warning empty unless there is a real trap.

@@ -1,0 +1,39 @@
+--- MagicScript.py
++++ MagicScript.py
+@@ -397,8 +397,8 @@
+                 ui.TextEdit({"ID": LOG_ID, "ReadOnly": True, "Font": mono_font, "Weight": 1}),
+                 ui.HGroup({"Weight": 0, "Spacing": 6}, [
+                     ui.HGap(0, 1),
+-                    ui.Button({"ID": GUIDE_ID, "Text": "AI guide", "Weight": 0,
+-                               "ToolTip": "Opens MAGICSCRIPT.md, the guide to hand to your AI assistant: where the scripts live, how to run one, how to write one"}),
++                    ui.Button({"ID": GUIDE_ID, "Text": "Install AI skill...", "Weight": 0,
++                               "ToolTip": "Install Create MagicScript for Codex or Claude Code, or export it for manual use"}),
+                     ui.Button({"ID": "mini", "Text": "Mini", "Weight": 0,
+                                "ToolTip": "Compact view: your favourites or a category, double-click to run. Keep it open in a corner."}),
+                 ]),
+@@ -1867,8 +1867,24 @@
+     open_path(REPORTS_DIR)
+ 
+ 
++skill_install_window = None
++
++
+ def on_ai_guide(ev):
+-    open_path(GUIDE_PATH)       # the guide itself; people paste or attach it to their assistant
++    global skill_install_window
++    try:
++        log("Choose Codex, Claude Code or Manual in the Create MagicScript skill window.")
++        if skill_install_window is not None:
++            skill_install_window.Hide()
++            skill_install_window.Close()
++        import magicscript_skills
++        importlib.reload(magicscript_skills)
++        skill_install_window = magicscript_skills.open_install_window(
++            ui, dispatcher, STYLE, GUIDE_PATH, KIT_DIR, log, open_path)
++        settle(skill_install_window, [260, 180, 700, 440])
++    except Exception as exc:
++        traceback.print_exc()
++        log(f"Could not open skill installer: {exc}")
+ 
+ 
+ # ------------------------------------------------------------------------------ AI prompt

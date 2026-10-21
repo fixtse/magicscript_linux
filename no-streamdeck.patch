@@ -1,0 +1,75 @@
+--- MagicScript.py
++++ MagicScript.py
+@@ -195,7 +195,6 @@
+ OPEN_ID = "openfolder"
+ REPORTS_ID = "openreports"
+ GUIDE_ID = "aiguide"
+-SD_ID = "streamdeck"
+ ADD_ID = "addpl"
+ PL_ID = "playlist"
+ DESC_H = 5 * 18 + 10    # description box: capped height, scrolls when a description is long
+@@ -398,8 +397,6 @@
+                 ui.TextEdit({"ID": LOG_ID, "ReadOnly": True, "Font": mono_font, "Weight": 1}),
+                 ui.HGroup({"Weight": 0, "Spacing": 6}, [
+                     ui.HGap(0, 1),
+-                    ui.Button({"ID": SD_ID, "Text": "Stream Deck plugin", "Weight": 0,
+-                               "ToolTip": "Installs the MagicScript plugin into the Elgato Stream Deck app; then drag Run script onto a key there"}),
+                     ui.Button({"ID": GUIDE_ID, "Text": "AI guide", "Weight": 0,
+                                "ToolTip": "Opens MAGICSCRIPT.md, the guide to hand to your AI assistant: where the scripts live, how to run one, how to write one"}),
+                     ui.Button({"ID": "mini", "Text": "Mini", "Weight": 0,
+@@ -1211,7 +1208,7 @@
+ BAKED_TEMPLATE = '''"""{name}
+ 
+ Saved from '{orig_name}' by MagicScript with these settings baked in. It has no variables, so it
+-runs at once from a double-click, a playlist or a Stream Deck key. Edit BAKED below to change the
++runs at once from a double-click, a playlist. Edit BAKED below to change the
+ settings; the work itself stays in the original script, which this one loads by id.
+ """
+ import os
+@@ -1313,7 +1310,7 @@
+         {"ID": wid, "WindowTitle": "Save as a script of its own", "Geometry": [320, 300, win_w, height], "StyleSheet": STYLE},
+         ui.VGroup({"Spacing": 6}, [
+             ui.Label({"Text": "A copy with these values baked in goes into your scripts folder. It has no dialog: "
+-                              "double-click, playlist steps and Stream Deck keys run it at once.",
++                              "double-click, playlist steps run it at once.",
+                       "WordWrap": True, "Weight": 0, "MinimumSize": [0, 44],
+                       "Alignment": {"AlignTop": True, "AlignLeft": True}}),
+             ui.LineEdit({"ID": "name", "Text": default_name, "Weight": 0}),
+@@ -1874,29 +1871,6 @@
+     open_path(GUIDE_PATH)       # the guide itself; people paste or attach it to their assistant
+ 
+ 
+-def on_streamdeck(ev):
+-    """Install the MagicScript Stream Deck plugin (keys are then added in the Elgato app: drag
+-    Run script or Run playlist onto a key and pick from the dropdown)."""
+-    if not sdeck.app_installed():
+-        log("The Elgato Stream Deck app is not installed (elgato.com); install it, then press this again.")
+-        return
+-    if sdeck.plugin_installed():
+-        log("The MagicScript Stream Deck plugin is already installed: in the Stream Deck app, drag Run script onto a key.")
+-        return
+-    pkg = sdeck.plugin_package(APP_DIR)
+-    if not pkg:
+-        log("Plugin package not found next to the app (expected streamdeck/%s)." % sdeck.PACKAGE_NAME)
+-        return
+-    log("Installing the MagicScript Stream Deck plugin (the Stream Deck app asks you to confirm): " + pkg)
+-    sdeck.open_file(pkg)
+-
+-
+-# ------------------------------------------------------------------------------ Stream Deck
+-# The plugin (streamdeck/) puts a Run script and a Run playlist action in the Elgato app; this button
+-# only installs it. magicscript_streamdeck.py knows where the app, the plugin and our package live.
+-import magicscript_streamdeck as sdeck  # noqa: E402
+-
+-
+ # ------------------------------------------------------------------------------ AI prompt
+ # One short request from the person, packaged with what an assistant needs to act on it without
+ # asking: the live project facts (names, tracks, frame rate, paths) and the MagicScript guide.
+@@ -2394,7 +2368,6 @@
+ win.On[OPEN_ID].Clicked = on_open_folder
+ win.On[REPORTS_ID].Clicked = on_open_reports
+ win.On[GUIDE_ID].Clicked = on_ai_guide
+-win.On[SD_ID].Clicked = on_streamdeck
+ win.On[ADD_ID].Clicked = on_add_playlist
+ win.On[PL_RUN_ID].Clicked = on_pl_run
+ win.On[PL_REMOVE_ID].Clicked = on_pl_remove
