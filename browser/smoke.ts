@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import assert from 'node:assert/strict';
 
 async function main(): Promise<void> {
+    process.env.MAGICSCRIPT_BROWSER_TEST = '1';
     const { startBrowser } = require('./main.cjs');
     const window = await startBrowser();
     const page = window.webContents;

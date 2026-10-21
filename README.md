@@ -172,6 +172,7 @@ This does not establish that every catalogue script or UI interaction works on e
 
 ## Troubleshooting
 
+- **Browser process runs without a window:** update once with `~/.local/bin/magicscript-update`, then close any older Browser processes and reopen it. The Linux host now starts through Electron's entry loader rather than relying on Node's `require.main` check.
 - **Browser does not start:** run `~/.local/bin/magicscript-browser` in a terminal to see the error. Install a Linux Electron runtime or set `ELECTRON_BIN`. The launcher clears Resolve's private library overrides; it does not disable Electron's sandbox.
 - **No MagicScript menu entry:** restart Resolve and confirm the launcher exists at the path above.
 - **Chooser does not open or text is clipped after an update:** close and reopen MagicScript so it loads the current code. Opening errors appear in its log.
@@ -222,7 +223,9 @@ MAGICSCRIPT_TEST_APP="$HOME/.local/share/magicscript-linux/current" pnpm test:br
 
 Commit `browser/dist/main.js` and `browser/dist/linux-update.js` after rebuilding; the installer copies this generated entry
 point beside the original Browser assets from the upstream package. TypeScript test sources
-are in `browser/catalogue-test.ts` and `browser/smoke.ts`. The latter can run in Electron
+are in `browser/catalogue-test.ts`, `browser/smoke.ts`, and `browser/launch-test.ts`.
+The launcher regression test runs the actual installed executable in an isolated home
+and verifies that the production window loads. The latter can run in Electron
 beside a staged `main.cjs`, with an isolated `MAGICSCRIPT_DIR`, to test the original renderer
 against the live catalogue without installing scripts or posting submissions/ratings.
 

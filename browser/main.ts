@@ -110,14 +110,16 @@ export async function startBrowser(): Promise<BrowserWindow> {
     window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
     window.webContents.on('render-process-gone', (_event, details) => console.error('Browser renderer exited:', details));
     await window.loadFile(entry);
+    console.log('MagicScript Browser ready.');
     return window;
 }
 
-if (require.main === module) {
+// Electron loads the entry with its own module loader; require.main is not reliable.
+if (process.env.MAGICSCRIPT_BROWSER_TEST !== '1') {
     if (!app.requestSingleInstanceLock()) {
         app.quit();
     } else {
-        app.on('second-instance', () => { window?.show(); window?.focus(); });
+        app.on('second-instance', () => { if (window?.isMinimized()) window.restore(); window?.show(); window?.focus(); });
         app.on('window-all-closed', () => app.quit());
         startBrowser().catch((error) => {
             console.error('Could not open MagicScript Browser:', error);
