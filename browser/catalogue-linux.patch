@@ -1,0 +1,36 @@
+--- catalogue.js
++++ catalogue.js
+@@ -36,6 +36,7 @@
+ 
+ // shipped_app_dir(): where magicscript_core.py lives on an installed machine. DEV_APP_DIR file in the user folder wins (dev checkout).
+ function appDir() {
++    if (process.env.MAGICSCRIPT_APP) return process.env.MAGICSCRIPT_APP;
+     const dev = path.join(userDir(), 'DEV_APP_DIR');
+     if (fs.existsSync(dev)) {
+         const p = fs.readFileSync(dev, 'utf8').replace(/^\uFEFF/, '').trim();
+@@ -43,7 +44,7 @@
+     }
+     if (process.platform === 'win32') return path.join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'MagicScript', 'current');
+     if (process.platform === 'darwin') return '/Library/Application Support/MagicScript/current';
+-    return '/opt/MagicScript/current';
++    return path.join(os.homedir(), '.local', 'share', 'magicscript-linux', 'current');
+ }
+ 
+ // Resolve's bundled Python: the interpreter MagicScript itself runs on.
+@@ -54,7 +55,7 @@
+             ? ['/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Applications/ResolvePython',   // bundled 3.14 (a symlink into Contents/Resources/ResolvePython)
+                '/Library/Frameworks/Python.framework/Versions/3.13/bin/python3.13',                       // the python.org install Resolve runs in-process scripts on
+                '/usr/bin/python3']
+-            : ['python3'];
++            : ['/opt/resolve/bin/ResolvePython', '/usr/bin/python3'];
+     return cands.find((p) => fs.existsSync(p)) || cands[0];
+ }
+ 
+@@ -218,6 +219,7 @@
+         if (source.includes(token)) throw new Error(`'${token.replace(/^\.|\($/g, '')}' is not allowed: ${why}`);
+     }
+     const v = validateWithPython(source, s.id);
++    if (!v.ran) throw new Error('MagicScript Python validator is unavailable; install Resolve Studio before installing scripts.');
+     if (v.error) throw new Error(`MagicScript validator refused it: ${v.error}`);
+     const dir = path.join(userDir(), 'scripts', s.category);
+     fs.mkdirSync(dir, { recursive: true });

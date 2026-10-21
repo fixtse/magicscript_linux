@@ -1,0 +1,14 @@
+{
+  "name": "magicscript-linux-host",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p browser/tsconfig.json",
+    "test:browser": "node browser/dist/catalogue-test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "electron": "45.0.0",
+    "typescript": "^5.9.0"
+  }
+}

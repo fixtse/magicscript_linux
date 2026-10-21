@@ -88,6 +88,29 @@ class TransactionTests(unittest.TestCase):
         self.assertFalse((self.home / '.config/systemd/user/magicscript-update.timer').exists())
         self.assertEqual(len(list((self.root / 'releases').iterdir())), 1)
 
+    def test_browser_activation_failure_restores_all_launchers(self):
+        self.install()
+        old_target = (self.root / 'current').readlink()
+        (self.root / 'current/.linux-install.json').write_text('{"fingerprint":"old"}')
+        browser = self.home / '.local/bin/magicscript-browser'
+        browser.write_text('previous browser launcher')
+        desktop = self.home / '.local/share/applications/magicscript-browser.desktop'
+        desktop.write_text('previous desktop entry')
+        original_write = installer.atomic_write
+        failed = False
+        def fail_desktop(path, content, mode=0o644):
+            nonlocal failed
+            if path == desktop and not failed:
+                failed = True
+                raise OSError('desktop write failed')
+            original_write(path, content, mode)
+        with patch.object(installer, 'prepare', side_effect=prepare_stub), patch.object(installer, 'atomic_write', side_effect=fail_desktop):
+            with self.assertRaises(OSError):
+                installer.install(Path('/unused'), BUNDLE, self.home, False)
+        self.assertEqual((self.root / 'current').readlink(), old_target)
+        self.assertEqual(browser.read_text(), 'previous browser launcher')
+        self.assertEqual(desktop.read_text(), 'previous desktop entry')
+
     def test_unrecognized_launcher_is_preserved(self):
         self.launcher.parent.mkdir(parents=True)
         self.launcher.write_text('my own launcher')

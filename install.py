@@ -12,8 +12,11 @@ import subprocess
 import tempfile
 import uuid
 
+from browser_port import BROWSER_COMMAND, RESOLVE_BROWSER, desktop_entry, prepare_browser
+
 FILES = ('install.py', 'release.json', 'no-streamdeck.patch', 'guide-linux.patch',
-         'ai-skills.patch', 'magicscript_skills.py')
+         'ai-skills.patch', 'magicscript_skills.py', 'browser_port.py',
+         'browser/catalogue-linux.patch', 'browser/window-button.patch', 'browser/dist/main.js')
 UPDATER = '''#!/usr/bin/env bash
 set -euo pipefail
 work=$(mktemp -d)
@@ -130,12 +133,18 @@ def prepare(source, stage, bundle, version):
     guide = stage / 'MAGICSCRIPT.md'
     guide.write_text(guide.read_text(encoding='utf-8').replace(
         '~/.local/share/magicscript-linux/1.2.3', '~/.local/share/magicscript-linux/current'), encoding='utf-8')
+    with guide.open('a', encoding='utf-8') as stream:
+        stream.write("\n## Linux Browser\n\nOpen the Browser button in MagicScript, Workspace > Scripts > Utility > MagicScript Browser,\nor the Linux application menu. The standalone Electron Browser installs catalogue scripts into\nthe same personal scripts folder; press Reload in MagicScript afterwards. It does not run scripts.\nCommand: `~/.local/bin/magicscript-browser`. It uses your system Electron runtime and the\ninstalled Python validator; signed catalogue and script hash checks remain enabled.\n")
     shutil.copy2(bundle / 'magicscript_skills.py', stage / 'magicscript_skills.py')
     for path in stage.rglob('*.py'):
         ast.parse(path.read_text(encoding='utf-8-sig'), filename=str(path))
     # The upstream validator imports scripts but does not run run(ctx).
     subprocess.run(['python3', str(stage / 'validate_scripts.py')], check=True,
                    stdout=subprocess.DEVNULL)
+    with (bundle / 'browser/window-button.patch').open() as patch:
+        subprocess.run(['patch', '--batch', '--forward', '--fuzz=0', str(main)], stdin=patch, check=True)
+    ast.parse(main.read_text(encoding='utf-8'))
+    prepare_browser(source, stage, bundle)
     ast.parse(LAUNCHER)
 
 
@@ -163,6 +172,9 @@ def install_locked(source, bundle, home, root, auto_update):
     updater = home / '.local/bin/magicscript-update'
     units = home / '.config/systemd/user'
     service, timer = units / 'magicscript-update.service', units / 'magicscript-update.timer'
+    browser_command = home / '.local/bin/magicscript-browser'
+    browser_launcher = launcher.with_name('MagicScript Browser.py')
+    desktop = home / '.local/share/applications/magicscript-browser.desktop'
     receipt = current / '.linux-install.json'
     up_to_date = receipt.is_file() and json.loads(receipt.read_text()).get('fingerprint') == fingerprint
     if launcher.exists() and 'MagicScript loader' not in launcher.read_text() and 'Unofficial Linux launcher for MagicScript' not in launcher.read_text():
@@ -170,7 +182,7 @@ def install_locked(source, bundle, home, root, auto_update):
     if current.exists() and not current.is_symlink():
         raise RuntimeError(f'Expected a managed symlink at {current}; leaving it unchanged.')
     can_schedule = auto_update and shutil.which('systemctl') and systemctl('show-environment', check=False).returncode == 0
-    paths = [current, launcher, updater] + ([service, timer] if can_schedule else [])
+    paths = [current, launcher, updater, browser_command, browser_launcher, desktop] + ([service, timer] if can_schedule else [])
     backups = {path: snapshot(path) for path in paths}
     was_enabled = can_schedule and systemctl('is-enabled', 'magicscript-update.timer', check=False).returncode == 0
     was_active = can_schedule and systemctl('is-active', 'magicscript-update.timer', check=False).returncode == 0
@@ -187,6 +199,9 @@ def install_locked(source, bundle, home, root, auto_update):
             switch_link(current, str(stage.relative_to(root)))
         atomic_write(launcher, LAUNCHER.encode())
         atomic_write(updater, UPDATER.encode(), 0o755)
+        atomic_write(browser_command, BROWSER_COMMAND.encode(), 0o755)
+        atomic_write(browser_launcher, RESOLVE_BROWSER.encode())
+        atomic_write(desktop, desktop_entry(home).encode())
         if can_schedule:
             atomic_write(service, SERVICE.encode())
             atomic_write(timer, TIMER.encode())
@@ -214,7 +229,7 @@ def install_locked(source, bundle, home, root, auto_update):
         if stage and not committed:
             shutil.rmtree(stage)
     print(('Already up to date: ' if up_to_date else 'Installed/updated: ') + release['version'])
-    print(f'Launcher: {launcher}\nUpdate command: {updater}')
+    print(f'Launcher: {launcher}\nBrowser: {browser_command}\nUpdate command: {updater}')
     if can_schedule:
         print('Automatic updates: daily user timer enabled (with up to 30 minutes random delay).')
     elif auto_update:

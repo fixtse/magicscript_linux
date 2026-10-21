@@ -1,0 +1,29 @@
+--- MagicScript.py
++++ MagicScript.py
+@@ -397,6 +397,8 @@
+                 ui.TextEdit({"ID": LOG_ID, "ReadOnly": True, "Font": mono_font, "Weight": 1}),
+                 ui.HGroup({"Weight": 0, "Spacing": 6}, [
+                     ui.HGap(0, 1),
++                    ui.Button({"ID": "browser", "Text": "Browser", "Weight": 0,
++                               "ToolTip": "Browse and install scripts from the online MagicScript catalogue"}),
+                     ui.Button({"ID": GUIDE_ID, "Text": "Install AI skill...", "Weight": 0,
+                                "ToolTip": "Install Create MagicScript for Codex or Claude Code, or export it for manual use"}),
+                     ui.Button({"ID": "mini", "Text": "Mini", "Weight": 0,
+@@ -2383,6 +2385,17 @@
+ win.On[SEARCH_ID].ReturnPressed = on_search_enter
+ win.On[OPEN_ID].Clicked = on_open_folder
+ win.On[REPORTS_ID].Clicked = on_open_reports
++def on_browser(ev):
++    try:
++        import subprocess
++        subprocess.Popen([os.path.expanduser("~/.local/bin/magicscript-browser")], start_new_session=True)
++        log("Opening MagicScript Browser in a separate Linux window.")
++    except Exception as exc:
++        traceback.print_exc()
++        log(f"Could not open MagicScript Browser: {exc}")
++
++
++win.On["browser"].Clicked = on_browser
+ win.On[GUIDE_ID].Clicked = on_ai_guide
+ win.On[ADD_ID].Clicked = on_add_playlist
+ win.On[PL_RUN_ID].Clicked = on_pl_run

@@ -4,3 +4,6 @@ research/
 *.exe
 *.pkg
 *.tar.gz
+node_modules/
+browser/dist/*
+!browser/dist/main.js
