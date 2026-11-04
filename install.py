@@ -17,7 +17,8 @@ from browser_port import BROWSER_COMMAND, RESOLVE_BROWSER, desktop_entry, prepar
 FILES = ('install.py', 'release.json', 'no-streamdeck.patch', 'guide-linux.patch',
          'ai-skills.patch', 'magicscript_skills.py', 'browser_port.py',
          'browser/catalogue-linux.patch', 'browser/window-button.patch', 'browser/renderer-linux.patch',
-         'browser/dist/main.js', 'browser/dist/linux-update.js')
+         'browser/dist/main.js', 'browser/dist/linux-update.js', 'discover_release.py',
+         'upstream/catalogue-public-key.pem')
 UPDATER = '''#!/usr/bin/env bash
 set -euo pipefail
 work=$(mktemp -d)
@@ -110,6 +111,11 @@ def prepare(source, stage, bundle, version):
                     ignore=shutil.ignore_patterns('._*', '__pycache__', 'streamdeck', 'magicscript_streamdeck.py'))
     main = stage / 'MagicScript.py'
     text = main.read_text(encoding='utf-8')
+    module = ast.parse(text)
+    versions = [ast.literal_eval(node.value) for node in module.body
+                if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'VERSION' for target in node.targets)]
+    if versions != [version]:
+        raise RuntimeError('Extracted engine version does not match the verified upstream release.')
     old = '    return "/Library/Application Support/Blackmagic Design/DaVinci Resolve/LUT"'
     if text.count(old) != 1:
         raise RuntimeError('Unsupported engine: LUT path anchor changed.')
@@ -154,7 +160,7 @@ def systemctl(*args, check=True):
                           capture_output=True, text=True)
 
 
-def install(source, bundle, home, auto_update=True):
+def install(source, bundle, home, auto_update=True, release=None):
     root = home / '.local/share/magicscript-linux'
     root.mkdir(parents=True, exist_ok=True)
     with (root / '.update.lock').open('a') as lock:
@@ -162,12 +168,12 @@ def install(source, bundle, home, auto_update=True):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
             raise RuntimeError('Another MagicScript update is in progress.') from exc
-        return install_locked(source, bundle, home, root, auto_update)
+        return install_locked(source, bundle, home, root, auto_update, release)
 
 
-def install_locked(source, bundle, home, root, auto_update):
-    release = json.loads((bundle / 'release.json').read_text())
-    fingerprint = hashlib.sha256(b''.join((bundle / name).read_bytes() for name in FILES)).hexdigest()
+def install_locked(source, bundle, home, root, auto_update, release=None):
+    release = release or json.loads((bundle / 'release.json').read_text())
+    fingerprint = hashlib.sha256(b''.join((bundle / name).read_bytes() for name in FILES) + json.dumps(release, sort_keys=True).encode()).hexdigest()
     current = root / 'current'
     launcher = home / '.local/share/DaVinciResolve/Fusion/Scripts/Utility/MagicScript.py'
     updater = home / '.local/bin/magicscript-update'
@@ -177,7 +183,10 @@ def install_locked(source, bundle, home, root, auto_update):
     browser_launcher = launcher.with_name('MagicScript Browser.py')
     desktop = home / '.local/share/applications/magicscript-browser.desktop'
     receipt = current / '.linux-install.json'
-    up_to_date = receipt.is_file() and json.loads(receipt.read_text()).get('fingerprint') == fingerprint
+    installed = json.loads(receipt.read_text()) if receipt.is_file() else {}
+    if tuple(map(int, installed.get('version', '0').split('.'))) > tuple(map(int, release['version'].split('.'))):
+        raise RuntimeError('Upstream discovery returned an older version; refusing to downgrade the active installation.')
+    up_to_date = installed.get('fingerprint') == fingerprint
     if launcher.exists() and 'MagicScript loader' not in launcher.read_text() and 'Unofficial Linux launcher for MagicScript' not in launcher.read_text():
         raise RuntimeError(f'Refusing to replace an unrecognized launcher: {launcher}')
     if current.exists() and not current.is_symlink():
@@ -195,7 +204,7 @@ def install_locked(source, bundle, home, root, auto_update):
             releases.mkdir(exist_ok=True)
             stage = Path(tempfile.mkdtemp(prefix=release['version'] + '-', dir=releases))
             prepare(source, stage, bundle, release['version'])
-            (stage / '.linux-install.json').write_text(json.dumps({'version': release['version'], 'fingerprint': fingerprint}))
+            (stage / '.linux-install.json').write_text(json.dumps({'version': release['version'], 'fingerprint': fingerprint, 'upstream': release}))
         if stage:
             switch_link(current, str(stage.relative_to(root)))
         atomic_write(launcher, LAUNCHER.encode())
@@ -241,13 +250,15 @@ def install_locked(source, bundle, home, root, auto_update):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('source', type=Path)
+    parser.add_argument('--release', type=Path, help='Verified upstream release metadata discovered by install.sh.')
     parser.add_argument('--no-auto-update', action='store_true', help='Do not create/enable the daily user timer.')
     args = parser.parse_args()
     # Convert a normal termination into an exception so transaction rollback runs.
     def terminate(signum, frame):
         raise KeyboardInterrupt('Installation interrupted')
     signal.signal(signal.SIGTERM, terminate)
-    install(args.source, Path(__file__).resolve().parent, Path.home(), not args.no_auto_update)
+    release = json.loads(args.release.read_text()) if args.release else None
+    install(args.source, Path(__file__).resolve().parent, Path.home(), not args.no_auto_update, release)
 
 
 if __name__ == '__main__':

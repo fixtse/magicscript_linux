@@ -111,6 +111,28 @@ class TransactionTests(unittest.TestCase):
         self.assertEqual(browser.read_text(), 'previous browser launcher')
         self.assertEqual(desktop.read_text(), 'previous desktop entry')
 
+    def test_new_upstream_version_is_attempted_without_changing_repository_manifest(self):
+        self.install()
+        old_target = (self.root / 'current').readlink()
+        release = {"version": "9.2.0", "url": "https://browser.magic-toolkit.com/releases/MagicScript-Setup-9.2.0.pkg", "sha256": "b" * 64}
+        with patch.object(installer, 'prepare', side_effect=prepare_stub) as prepare:
+            installer.install(Path('/unused'), BUNDLE, self.home, False, release)
+        self.assertEqual(prepare.call_args.args[-1], '9.2.0')
+        self.assertNotEqual((self.root / 'current').readlink(), old_target)
+        with patch.object(installer, 'prepare') as prepare:
+            installer.install(Path('/unused'), BUNDLE, self.home, False, release)
+            prepare.assert_not_called()
+        # Same helper bundle, another new upstream version: fail safely, retain last success.
+        active = (self.root / 'current').readlink()
+        release = dict(release, version='9.3.0')
+        with patch.object(installer, 'prepare', side_effect=RuntimeError('new version patch mismatch')):
+            with self.assertRaisesRegex(RuntimeError, 'patch mismatch'):
+                installer.install(Path('/unused'), BUNDLE, self.home, False, release)
+        self.assertEqual((self.root / 'current').readlink(), active)
+        self.assertEqual(self.personal.read_text(), 'my settings')
+        with self.assertRaisesRegex(RuntimeError, 'downgrade'):
+            self.install()
+
     def test_unrecognized_launcher_is_preserved(self):
         self.launcher.parent.mkdir(parents=True)
         self.launcher.write_text('my own launcher')

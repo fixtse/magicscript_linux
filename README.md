@@ -1,6 +1,6 @@
 # MagicScript for Linux
 
-An unofficial, per-user Linux installer for **MagicScript 1.2.3** in **DaVinci Resolve Studio 21.1+**.
+An unofficial, per-user Linux installer for **MagicScript** in **DaVinci Resolve Studio 21.1+**.
 
 **MagicScript was created by MrAlexTech (MrAlexTech Ltd).** This repository adapts the installation and interface for Linux; the original MagicScript engine and catalogue scripts are the creator's work.
 
@@ -12,7 +12,7 @@ This project is independent of MrAlexTech Ltd and Blackmagic Design.
 
 You need DaVinci Resolve **Studio** 21.1 or newer installed on Linux. The free edition is not supported. The installer assumes Resolve is installed in `/opt/resolve`.
 
-1. Install these command-line tools using your distribution's package manager: `bash`, `curl`, `python3`, `patch`, `bsdtar` (libarchive), `tar`, `sha256sum` (coreutils), and a Linux `electron` runtime.
+1. Install these command-line tools using your distribution's package manager: `bash`, `curl`, `python3`, `patch`, `bsdtar` (libarchive), `tar`, `sha256sum` (coreutils), `openssl`, and a Linux `electron` runtime.
 2. Open a terminal and run this one-line installer (no Git required):
 
    ```bash
@@ -32,7 +32,8 @@ or TypeScript compiler is needed for end-user installation.
 
 Run as your normal user, without `sudo`. The command downloads the Linux installer files
 from this repository and the original macOS package from the creator's download server.
-It verifies the package's SHA-256 before extracting its Python files. No macOS or Windows
+It discovers the newest version from the creator's Ed25519-signed Browser catalogue, verifies
+the signature with OpenSSL and the installer's SHA-256, then extracts its Python files. No macOS or Windows
 executable is run. An internet connection is required.
 
 If you prefer to inspect the installer first, download this repository as a ZIP, extract it,
@@ -41,13 +42,14 @@ and run `bash install.sh` from its folder. A Git checkout also works.
 ## Automatic updates and rollback
 
 The installer also acts as an updater: run the same one-liner again at any time. It fetches
-the latest Linux adaptation and installs the upstream version recorded in `release.json`.
+the latest Linux adaptation, discovers the newest upstream version from the signed catalogue,
+and attempts the Linux patches automatically.
 In the Browser, open **Installed → Check for Linux updates**. This runs the same
 transactional updater: every click downloads the latest installer and patch files from
 GitHub, verifies the upstream package, prepares the Linux changes, and activates only a
 validated result. Future versions and Linux patch revisions use this same action; users
 do not need to install a new Browser first just to learn the new patches. New upstream
-releases still need a compatible `release.json` and patches published in this repository.
+versions are attempted without requiring a repository release or a `release.json` change.
 
 The Browser shows progress and a success/failure result, prevents duplicate update runs,
 and stays open while the updater finishes. Close and reopen MagicScript and the Browser
@@ -99,12 +101,24 @@ Updates are transactional:
 - A lock prevents simultaneous installs. Older successful releases and the original `1.2.3`
   installation are kept; close and reopen MagicScript after an update.
 
-Automatic updates follow **releases supported by this Linux adaptation**, including patch
-updates to the same upstream version. They do not blindly install an untested new upstream
-release. Maintainers must update `release.json`, its pinned checksum, and compatible patches
-before a new upstream version is eligible. A failed download/checksum leaves the current
-installation untouched. Power loss or a forcibly killed process cannot execute rollback;
-activation uses atomic file/link replacement to reduce that risk.
+Automatic discovery does **not** wait for a maintainer to publish a new version here.
+Each check verifies `https://browser.magic-toolkit.com/index.json` against its detached
+signature using the original creator's public key in `upstream/catalogue-public-key.pem`.
+It selects the newest Mac installer in that signed metadata, checks the downloaded hash,
+then attempts the existing Linux patches with fuzzy matching disabled. Documentation-only
+edits match the exact changed text so unrelated upstream additions do not block them.
+
+If an upstream code change makes a patch or validation fail, the active installation stays
+in place and the failure is reported; a maintainer may then need to adapt that patch.
+Signature, network and checksum failures also leave the active installation unchanged.
+The receipt records the discovered version and checksum; a new upstream version is checked
+even when the Linux helper files have not changed. Older upstream metadata cannot silently
+downgrade an existing installation.
+
+`release.json` remains a 1.2.3 baseline for direct developer/offline fixture installs only.
+Normal one-line installation, the daily timer, and the Browser all use signed live discovery.
+Power loss or a forcibly killed process cannot execute rollback; activation uses atomic
+file/link replacement to reduce that risk.
 
 ## What this Linux adaptation changes
 
@@ -165,7 +179,9 @@ Verified on Linux x86_64 with Resolve Studio **21.1.1.10**:
   No tests posted community submissions or ratings.
 - Linux paths discovered **125 LUT files** on the test machine.
 - Skill installation, repeat installation, conflict preservation, manual ZIP export and success messaging were checked; installation tests used temporary directories.
-- Clean installation, repeated update, patch/preparation failure, activation failure, and
+- Automatic discovery and patching were also verified with upstream **1.2.6**.
+- Signed discovery, tamper rejection, upgrade detection without helper changes, repeated
+  updates, patch/preparation failure, activation failure, and
   timer-activation rollback were checked. Transaction tests use temporary home directories.
 
 This does not establish that every catalogue script or UI interaction works on every Linux system. Individual catalogue scripts have not all been tested against projects. The Browser runs as a standalone Electron app rather than inside Resolve's unsupported Linux Workflow Integration host. Upstream Ctrl/Shift-click modifier detection has no Linux implementation, so those shortcuts remain limited.
@@ -178,7 +194,7 @@ This does not establish that every catalogue script or UI interaction works on e
 - **Chooser does not open or text is clipped after an update:** close and reopen MagicScript so it loads the current code. Opening errors appear in its log.
 - **Missing command:** install the named tool using your distribution's package manager. `bsdtar` is provided by libarchive; some distributions name the package `libarchive-tools`.
 - **Existing installation:** recognized Linux launchers are upgraded automatically. An unrecognized launcher is preserved and reported as a conflict. Existing assistant skills are not overwritten; move a conflicting skill aside if you want to replace it.
-- **Checksum mismatch:** stop and verify the upstream download/version. The package is pinned to 1.2.3; do not bypass verification.
+- **Checksum mismatch:** stop and verify the upstream download/version. The expected hash comes from the creator's verified signed catalogue; do not bypass verification. A signature error may indicate a broken download or upstream key rotation and is also rejected.
 
 ## Uninstall
 
@@ -238,5 +254,5 @@ All credit for **MagicScript and its catalogue** belongs to **MrAlexTech / MrAle
 
 MagicScript is proprietary freeware, not an open-source project. Its original licence and third-party notices are preserved in the installed payload. This Linux adaptation does not change the creator's ownership or licence terms.
 
-- Original package: [MagicScript-Setup-1.2.3.pkg](https://downloads.magic-toolkit.com/magicscript/mac/MagicScript-Setup-1.2.3.pkg)
-- Pinned SHA-256: `62e8d3a2bef019fe35fa093f8dae4967ca37daef41931b2719ef2d15e62a0c02`
+- Original baseline package: [MagicScript-Setup-1.2.3.pkg](https://downloads.magic-toolkit.com/magicscript/mac/MagicScript-Setup-1.2.3.pkg)
+- Baseline SHA-256: `62e8d3a2bef019fe35fa093f8dae4967ca37daef41931b2719ef2d15e62a0c02`
